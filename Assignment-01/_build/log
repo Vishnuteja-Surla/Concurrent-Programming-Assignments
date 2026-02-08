@@ -1,0 +1,17 @@
+# dune exec ./test.exe
+# OCAMLPARAM: unset
+# Shared cache: enabled-except-user-rules
+# Shared cache location: /home/vishnu/.cache/dune/db
+# Workspace root:
+# /home/vishnu/IITM/Sem-2/CS6868_Concurrent_Programming/Assignments/Assignment-01
+# Auto-detected concurrency: 8
+# Dune context:
+#  { name = "default"
+#  ; kind = "default"
+#  ; profile = Dev
+#  ; merlin = true
+#  ; fdo_target_exe = None
+#  ; build_dir = In_build_dir "default"
+#  ; instrument_with = []
+#  }
+$ /home/vishnu/.opam/standard/bin/ocamlc.opt -config > /tmp/dune_a962ba_output
