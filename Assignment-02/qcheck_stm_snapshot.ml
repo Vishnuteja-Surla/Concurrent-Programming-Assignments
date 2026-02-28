@@ -67,8 +67,13 @@ let arb_cmd _state =
    - For Update(idx, value): update the model array at index idx
    - For Scan: the model state doesn't change (Scan is read-only)
    ============================================================================ *)
-let next_state _cmd _state =
-  failwith "TODO: Implement next_state"
+let next_state cmd state =
+  match cmd with
+  | Update (idx, value) ->
+    let next_state = Array.copy state in
+    next_state.(idx) <- value;
+    next_state
+  | Scan -> state
 
 (** Precondition - all commands are always valid for snapshot *)
 let precond _cmd _state = true
@@ -99,8 +104,11 @@ let run cmd snapshot =
 
    Return true if result is acceptable, false otherwise.
    ============================================================================ *)
-let postcond _cmd _state _result =
-  failwith "TODO: Implement postcond"
+let postcond cmd (state : model_state) result =
+  match cmd, result with
+  | Update _, Res ((Unit, _), _) -> true
+  | Scan, Res((Array Int, _), actual_arr) -> state = actual_arr
+  | _ -> false
 
 (** QCheck-STM specification *)
 module Spec = struct
