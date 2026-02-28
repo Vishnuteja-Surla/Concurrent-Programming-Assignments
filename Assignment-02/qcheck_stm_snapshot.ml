@@ -67,7 +67,7 @@ let arb_cmd _state =
    - For Update(idx, value): update the model array at index idx
    - For Scan: the model state doesn't change (Scan is read-only)
    ============================================================================ *)
-let next_state cmd state =
+let next_state _cmd _state =
   failwith "TODO: Implement next_state"
 
 (** Precondition - all commands are always valid for snapshot *)
@@ -99,7 +99,7 @@ let run cmd snapshot =
 
    Return true if result is acceptable, false otherwise.
    ============================================================================ *)
-let postcond cmd state result =
+let postcond _cmd _state _result =
   failwith "TODO: Implement postcond"
 
 (** QCheck-STM specification *)

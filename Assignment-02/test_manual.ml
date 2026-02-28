@@ -22,7 +22,15 @@
     This test should PASS if your basic operations work correctly.
 *)
 let test_sequential () =
-  failwith "Not implemented"
+  Printf.printf "Running Sequential test...\n%!";
+  let s = Snapshot.create 4 0 in
+  Snapshot.update s 0 10;
+  Snapshot.update s 1 20;
+  Snapshot.update s 2 30;
+  Snapshot.update s 3 40;
+  let result = Snapshot.scan s in
+  assert(result = [|10; 20; 30; 40|]);
+  ()
 
 (** Test 2: Concurrent updates, single scanner
 
@@ -43,7 +51,30 @@ let test_sequential () =
     This test should PASS if you use Atomic.t correctly (no data races).
 *)
 let test_concurrent_updates () =
-  failwith "Not implemented"
+  Printf.printf "Running concurrent updates test...\n%!";
+  let n = 4 in
+  let s = Snapshot.create n 0 in
+
+  let domains = 
+    Array.init n (fun i -> 
+      Domain.spawn (fun () ->
+          for j = 0 to 99 do
+            Snapshot.update s i ((i * 1000) + j)
+          done
+        )
+      )
+    in
+    Array.iter Domain.join domains;
+  
+  let result = Snapshot.scan s in
+    for i = 0 to (n - 1) do
+      let min_val = (i*1000) in
+      let max_val = (i*1000) + 100 in
+      assert(result.(i) >= min_val && result.(i) < max_val)
+    done;
+    ()
+
+
 
 (** Test 3: Multiple concurrent scanners - THE CRITICAL TEST FOR DOUBLE-COLLECT
 
@@ -71,7 +102,36 @@ let test_concurrent_updates () =
     the double-collect algorithm correctly. A naive scan will fail here.
 *)
 let test_concurrent_scans () =
-  failwith "Not implemented"
+  Printf.printf "Running concurrent scan test...\n%!";
+  let s = Snapshot.create 3 0 in
+
+  (* One Updater Domain *)
+  let updater = Domain.spawn (fun () ->
+      for i = 0 to 100 do
+        Snapshot.update s 0 i;
+        Snapshot.update s 1 (i*10);
+        Snapshot.update s 2 (i*100);
+        ()
+      done
+    ) in
+
+  (* 4 Scanner Domains *)
+    let scanners = 
+      Array.init 4 (fun _ ->
+        Domain.spawn(fun () ->
+          for _ = 1 to 50 do
+            let arr = Snapshot.scan s in
+            let r0 = arr.(0) in
+            let r1 = arr.(1) in
+            let r2 = arr.(2) in
+            assert((r0 >= (r1/10)) && (r1 >= (r2/10)))
+          done
+        )
+      )
+        in
+        Domain.join updater;
+        Array.iter Domain.join scanners;
+        ()
 
 (** Test 4: High contention stress test
 
@@ -89,12 +149,32 @@ let test_concurrent_scans () =
     double-collect handles high contention gracefully.
 *)
 let test_high_contention () =
-  failwith "Not implemented"
+  Printf.printf "Running high contention test...\n%!";
+  let n = 3 in
+  let s = Snapshot.create n 0 in
+  let domains = 
+    Array.init 8 (fun id ->
+        Domain.spawn(fun () ->
+          for i = 0 to 1000 do
+            if id mod 2 = 0 then
+              Snapshot.update s (i mod n) i
+            else
+              ignore (Snapshot.scan s)
+          done
+        )
+      )
+        in
+        Array.iter Domain.join domains;
+        ()
 
 (** Main test runner *)
 let () =
   test_sequential ();
+  Printf.printf "Sequential test passed successfully!\n%!";
   test_concurrent_updates ();
+  Printf.printf "Concurrent Updates test passed successfully!\n%!";
   test_concurrent_scans ();
+  Printf.printf "Concurrent Scans test passed successfully!\n%!";
   test_high_contention ();
+  Printf.printf "High Contention test passed successfully!\n%!";
   Printf.printf "All manual tests passed!\n%!"
