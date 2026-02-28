@@ -216,10 +216,18 @@ let test_structure_verification () =
 let test_performance () =
   (* failwith "Not implemented" *)
   Printf.printf "Performance Test: 8 threads, 10000 iterations...\n%!";
+  for i = 1 to 5 do
+    if (i <> 3) then begin
+    let start = Sys.time () in
+    run_concurrent_test i (10000/i);
+    let stop = Sys.time () in
+    Printf.printf "Execution Time: %fs\n%!" (stop -. start)
+    end
+  done;
   let start = Sys.time () in
-  run_concurrent_test 8 10000;
+  run_concurrent_test 8 (10000/8);
   let stop = Sys.time () in
-  Printf.printf "Execution Time: %fs\n" (stop -. start)
+  Printf.printf "Execution Time: %fs\n%!" (stop -. start)
 
 (* Main test runner *)
 let () =

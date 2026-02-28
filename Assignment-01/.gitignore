@@ -4,6 +4,7 @@ student_template/
 # Assignment handout (LaTeX - optional, not used in student template)
 assignment.tex
 assignment.pdf
+*.zip
 
 # Autograder output files
 autograder/grading_report.json
