@@ -30,4 +30,33 @@
     state that existed during the scan operation. *)
 
 
-failwith "Implement QCheck-Lin test following Lecture 3 examples"
+open Lin
+
+(** Lin API specification for the Snapshot queue *)
+module SnapshotSig = struct
+  type t = int Snapshot.t
+
+  (* Create a snapshot of size 3 with 0s for testing *)
+  let init () = Snapshot.create 3 0
+  
+  (* No cleanup is needed *)
+  let cleanup _ = ()
+
+  (* API description using Lin's combinator DSL *)
+  let api =
+    [
+      (* update takes a snapshot (t), an index 0-2 (int_bound 2), a value (int), and returns unit *)
+      val_ "update" Snapshot.update (t @-> int_bound 2 @-> int @-> returning_or_exc unit);
+      
+      (* scan takes a snapshot (t) and returns an int array *)
+      val_ "scan" Snapshot.scan (t @-> returning (array int));
+    ]
+end
+
+(* Generate the linearizability test from the specification *)
+module SnapshotLin = Lin_domain.Make(SnapshotSig)
+
+let () =
+  QCheck_base_runner.run_tests_main [
+    SnapshotLin.lin_test ~count:200 ~name:"Atomic Snapshot Linearizability"
+  ]
