@@ -157,7 +157,7 @@ let test_high_contention () =
         Domain.spawn(fun () ->
           for i = 0 to 1000 do
             if id mod 2 = 0 then
-              Snapshot.update s (i mod n) i
+              Snapshot.update s (i mod n) (id * 1000 + i)
             else
               ignore (Snapshot.scan s)
           done
