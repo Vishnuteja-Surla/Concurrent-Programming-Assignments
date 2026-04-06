@@ -30,7 +30,13 @@ type 'a t = {
 
 (** [create capacity] initializes a new queue. Validate capacity, then
     initialize all fields of the ['a t] record. *)
-let create _capacity = failwith "Not implemented"
+let create capacity = 
+  if capacity <= 0 then invalid_arg "The capacity of the queue must be greater than 0";
+  let mutex = Mutex.create () in
+  let buffer = Queue.create () in
+  let enq_waiters = Queue.create () in
+  let deq_waiters = Queue.create () in
+  { mutex; buffer; capacity; enq_waiters; deq_waiters }
 
 let validate_enq_count q n =
   if n <= 0 then
@@ -48,7 +54,19 @@ let free_space q = q.capacity - Queue.length q.buffer
 
 (** [notify q] checks the head of each waiter queue and signals it if
     its request can now be satisfied. Call after every enqueue or dequeue. *)
-let notify _q = failwith "Not implemented"
+let notify q = 
+  begin
+  let new_enq = Queue.peek_opt q.enq_waiters in
+  match new_enq with
+  | Some enq_op -> if free_space q >= Array.length enq_op.items then Condition.signal enq_op.cond else ()
+  | None -> ()
+  end;
+  begin
+  let new_deq = Queue.peek_opt q.deq_waiters in
+  match new_deq with
+  | Some deq_op -> if Queue.length q.buffer >= deq_op.amount then Condition.signal deq_op.cond else ()
+  | None -> ()
+  end
 
 (** [enq q items] atomically enqueues all items. Algorithm:
     1. Validate and lock the mutex (use [Fun.protect] for safe unlock).
@@ -59,22 +77,83 @@ let notify _q = failwith "Not implemented"
        - Pop self from [enq_waiters].
     3. Push all items into [buffer].
     4. Call [notify]. *)
-let enq _q _items = failwith "Not implemented"
+let enq q items =
+  validate_enq_count q (Array.length items);
+  Mutex.lock q.mutex;
+  Fun.protect ~finally:(fun () -> Mutex.unlock q.mutex)(fun () ->
+    if ((free_space q < Array.length items) || (Queue.length q.enq_waiters > 0)) then begin
+      let new_waiter = {items = items; cond = Condition.create ()} in
+      Queue.push new_waiter q.enq_waiters;
+      while ((Queue.peek q.enq_waiters != new_waiter) || (free_space q < Array.length items)) do
+        Condition.wait new_waiter.cond q.mutex
+      done;
+      ignore (Queue.pop q.enq_waiters);
+    end
+
+    for i = 0 to (Array.length items - 1) do
+      Queue.push items.(i) q.buffer
+    done;
+    notify q      
+  )
 
 (** [deq q n] atomically dequeues [n] items. Symmetric to [enq]:
     wait on [deq_waiters] until at head AND enough items available. *)
-let deq _q _n = failwith "Not implemented"
+let deq q n = 
+  validate_deq_count q n;
+  Mutex.lock q.mutex;
+  Fun.protect ~finally:(fun () -> Mutex.unlock q.mutex)(fun () ->
+    if ((Queue.length q.buffer < n) || (Queue.length q.deq_waiters > 0)) then begin
+      let new_waiter = {amount = n; cond = Condition.create ()} in
+      Queue.push new_waiter q.deq_waiters;
+      while ((Queue.peek q.deq_waiters != new_waiter) || (Queue.length q.buffer < n)) do
+        Condition.wait new_waiter.cond q.mutex
+      done;
+      ignore (Queue.pop q.deq_waiters);
+    end;
+
+    let a = Array.init n (fun _ -> Queue.pop q.buffer) in
+    notify q;
+    a 
+  )
 
 (** [try_enq q items] non-blocking enqueue. If no enqueuers are waiting
     ahead AND enough free space, enqueue and return [true]. Otherwise
     return [false] immediately (do not create a waiter). *)
-let try_enq _q _items = failwith "Not implemented"
+let try_enq q items = 
+  validate_enq_count q (Array.length items);
+  Mutex.lock q.mutex;
+  Fun.protect ~finally:(fun () -> Mutex.unlock q.mutex)(fun () ->    
+    if ((free_space q < Array.length items) || (Queue.length q.enq_waiters > 0)) then false
+    else begin
+      for i = 0 to (Array.length items - 1) do
+        Queue.push items.(i) q.buffer
+      done;
+      notify q;
+      true
+    end
+  )
+
 
 (** [try_deq q n] non-blocking dequeue. If no dequeuers are waiting
     ahead AND enough items, dequeue and return [Some items]. Otherwise
     return [None] immediately (do not create a waiter). *)
-let try_deq _q _n = failwith "Not implemented"
+let try_deq q n =
+  validate_deq_count q n;
+  Mutex.lock q.mutex;
+  Fun.protect ~finally:(fun () -> Mutex.unlock q.mutex)(fun () ->    
+    if ((Queue.length q.buffer < n) || (Queue.length q.deq_waiters > 0)) then 
+      None
+    else begin
+      let a = Array.init n (fun _ -> Queue.pop q.buffer) in
+      notify q;
+      Some a
+    end
+  )
 
-let size _q = failwith "Not implemented"
+let size q =
+  Mutex.lock q.mutex;
+  Fun.protect ~finally:(fun () -> Mutex.unlock q.mutex)(fun () ->
+    Queue.length q.buffer
+  )
 
-let capacity _q = failwith "Not implemented"
+let capacity q = q.capacity
