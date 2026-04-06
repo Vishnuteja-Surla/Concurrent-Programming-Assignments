@@ -76,6 +76,12 @@ Implement a lock-free atomic snapshot object using the double-collect algorithm 
 
 ---
 
+### Assignment 3: Batch Bounded Blocking Queue
+
+Implement a bounded blocking queue with batch atomic operations and strict FIFO fairness using mutexes and condition variables
+
+**Emphasis:** synchronization using locks and condition variables, fairness, and head-of-line blocking
+
 
 ## Evaluation Scheme
 
