@@ -11,13 +11,72 @@ let assert_array_eq a b msg =
   end
 
 (** Test create, enq, deq, size, capacity in a single thread. *)
-let test_sequential_basic () = failwith "TODO: implement"
+let test_sequential_basic () = 
+  let q = BatchQueue.create 10 in
+  assert(BatchQueue.capacity q = 10);
+  assert(BatchQueue.size q = 0);
+  BatchQueue.enq q [|1;2;3|];
+  assert(BatchQueue.size q = 3);
+  let result = BatchQueue.deq q 2 in
+  assert_array_eq result [|1;2|] "Basic Deque Mismatch";
+  assert(BatchQueue.size q = 1);
+  ()
 
 (** Test that invalid arguments raise [Invalid_argument]. *)
-let test_error_handling () = failwith "TODO: implement"
+let test_error_handling () =
+  try
+    let _ = BatchQueue.create 0 in
+    failwith "FAIL: create 0 should have raised an Invalid Argument!"
+  with Invalid_argument e -> printf "SUCCESS: Caught the exception - %s\n" e;
+  try
+    let _ = BatchQueue.create (-5) in
+    failwith "FAIL: create -5 should have raised an Invalid Argument!"
+  with Invalid_argument e -> printf "SUCCESS: Caught the exception - %s\n" e;
+  try
+    let q = BatchQueue.create 5 in
+    BatchQueue.enq q [|1;2;3;4;5;6;7|];
+    failwith "FAIL: Enqueuing more than capacity should have raised an Invalid Argument!"
+  with Invalid_argument e -> printf "SUCCESS: Caught the exception - %s\n" e;
+  try
+    let q = BatchQueue.create 5 in
+    BatchQueue.enq q [||];
+    failwith "FAIL: Enqueuing 0 sized array should have raised an Invalid Argument!"
+  with Invalid_argument e -> printf "SUCCESS: Caught the exception - %s\n" e;
+  try
+    let q = BatchQueue.create 5 in
+    BatchQueue.deq q 7;
+    failwith "FAIL: Dequeue count more than capacity should have raised an Invalid Argument!"
+  with Invalid_argument e -> printf "SUCCESS: Caught the exception - %s\n" e;
+  try
+    let q = BatchQueue.create 5 in
+    BatchQueue.deq q 0;
+    failwith "FAIL: Dequeue count 0 should have raised an Invalid Argument!"
+  with Invalid_argument e -> printf "SUCCESS: Caught the exception - %s\n" e;
+  try
+    let q = BatchQueue.create 5 in
+    BatchQueue.deq q (-3);
+    failwith "FAIL: Dequeue count < 0 should have raised an Invalid Argument!"
+  with Invalid_argument e -> printf "SUCCESS: Caught the exception - %s\n" e;
+
 
 (** Test that deq blocks until items arrive (and/or enq blocks until space frees). *)
-let test_blocking_enq_deq () = failwith "TODO: implement"
+let test_blocking_enq_deq () =
+  let q = BatchQueue.create 5 in
+  let consumer = Domain.spawn(fun () ->
+    BatchQueue.deq q 3
+  ) in
+  Unix.sleepf 0.1;
+  BatchQueue.enq q [|1;2;3|];
+  let result1 = Domain.join consumer in
+  assert_array_eq result [|1;2;3|] "Deque sleep condition is faulty";
+  BatchQueue.enq q [|1;2;3;4;5|]
+  let producer = Domain.spawn(fun () ->
+    BatchQueue.enq q [|6;7|]  
+  ) in
+  Unix.sleepf 0.1;
+  let _result2 = BatchQueue.deq q 2 in
+  Domain.join producer;
+  assert(BatchQueue.size q = 5)
 
 (** Test that a single producer/consumer pair sees items in FIFO order. *)
 let test_fifo_single_producer_consumer () = failwith "TODO: implement"
