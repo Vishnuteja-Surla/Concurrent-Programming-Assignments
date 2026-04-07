@@ -44,19 +44,19 @@ let test_error_handling () =
   with Invalid_argument e -> printf "SUCCESS: Caught the exception - %s\n" e;
   try
     let q = BatchQueue.create 5 in
-    BatchQueue.deq q 7;
+    ignore(BatchQueue.deq q 7);
     failwith "FAIL: Dequeue count more than capacity should have raised an Invalid Argument!"
   with Invalid_argument e -> printf "SUCCESS: Caught the exception - %s\n" e;
   try
     let q = BatchQueue.create 5 in
-    BatchQueue.deq q 0;
+    ignore(BatchQueue.deq q 0);
     failwith "FAIL: Dequeue count 0 should have raised an Invalid Argument!"
   with Invalid_argument e -> printf "SUCCESS: Caught the exception - %s\n" e;
   try
     let q = BatchQueue.create 5 in
-    BatchQueue.deq q (-3);
+    ignore(BatchQueue.deq q (-3));
     failwith "FAIL: Dequeue count < 0 should have raised an Invalid Argument!"
-  with Invalid_argument e -> printf "SUCCESS: Caught the exception - %s\n" e;
+  with Invalid_argument e -> printf "SUCCESS: Caught the exception - %s\n" e
 
 
 (** Test that deq blocks until items arrive (and/or enq blocks until space frees). *)
@@ -94,7 +94,7 @@ let test_fifo_single_producer_consumer () =
   ) in
   Domain.join producer;
   let result = Domain.join consumer in
-  assert_array_eq result [|1;2;3;4;5;6;7;8;9;10|] "FAIL: FIFO Single Producer-Consumer test failed!";
+  assert_array_eq result [|1;2;3;4;5;6;7;8;9;10|] "FAIL: FIFO Single Producer-Consumer test failed!"
 
 (** Test dequeuer head-of-line blocking: deq(5) arrives before deq(2);
     even when 6 items are enqueued, deq(5) must be served first. *)

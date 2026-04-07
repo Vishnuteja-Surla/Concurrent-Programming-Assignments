@@ -88,7 +88,7 @@ let enq q items =
         Condition.wait new_waiter.cond q.mutex
       done;
       ignore (Queue.pop q.enq_waiters);
-    end
+    end;
 
     for i = 0 to (Array.length items - 1) do
       Queue.push items.(i) q.buffer
