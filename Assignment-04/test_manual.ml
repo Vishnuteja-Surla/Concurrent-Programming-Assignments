@@ -167,7 +167,48 @@ end
 
 (** Test the R/W exclusion invariants: at most one writer,
     readers and writers never coexist. *)
-let test_readers_writers () = failwith "Not implemented"
+let test_readers_writers () =
+  let rw = Rw_lock.create () in
+  let readers_active = ref 0 in
+  let writers_active = ref 0 in
+  let invariant_failed = ref false in
+
+  let check_invariant () =
+    if !writers_active > 1 || (!writers_active = 1 && !readers_active > 0) then
+      invariant_failed := true
+  in
+
+  Sched.run (fun () ->
+    (* Spawn 3 Readers *)
+    for _ = 1 to 3 do
+      Sched.fork (fun () ->
+        Rw_lock.read_lock rw;
+        readers_active := !readers_active + 1;
+        check_invariant ();
+        
+        Sched.yield (); (* Try to let someone else sneak in! *)
+        
+        readers_active := !readers_active - 1;
+        Rw_lock.read_unlock rw
+      )
+    done;
+    
+    (* Spawn 2 Writers *)
+    for _ = 1 to 2 do
+      Sched.fork (fun () ->
+        Rw_lock.write_lock rw;
+        writers_active := !writers_active + 1;
+        check_invariant ();
+        
+        Sched.yield (); (* Try to let someone else sneak in! *)
+        
+        writers_active := !writers_active - 1;
+        Rw_lock.write_unlock rw
+      )
+    done
+  );
+  
+  (not !invariant_failed, "R/W lock maintains exclusion invariants")
 
 (** Test reusable N-party barrier: no fiber is more than one round
     ahead of any other across multiple barrier crossings. *)
@@ -222,21 +263,121 @@ let test_semaphore () =
 
 (** Test that [Select.select] picks an already-free mutex in phase 1
     (the fast path). *)
-let test_lock_evt_fastpath () = failwith "Not implemented"
+let test_lock_evt_fastpath () =
+  let m = Mutex.create () in
+  let ok = ref false in
+  
+  Sched.run (fun () ->
+    Select.select [Mutex.lock_evt m];
+    
+    Mutex.unlock m;
+    ok := true
+  );
+  
+  (!ok, "lock_evt fastpath acquires free mutex instantly")
 
 (** Test [Select.select] over two held mutexes — it should block until
     one is unlocked, then take that case; stale waiter on the other
     mutex must be tolerated. *)
-let test_lock_evt_blocking () = failwith "Not implemented"
+let test_lock_evt_blocking () =
+  let m1 = Mutex.create () in
+  let m2 = Mutex.create () in
+  let won_m1 = ref false in
+  
+  Sched.run (fun () ->
+    (* 1. Main grabs both locks *)
+    Mutex.lock m1;
+    Mutex.lock m2;
+    
+    (* 2. Selector Fiber tries to grab whichever becomes free first *)
+    Sched.fork (fun () ->
+      Select.select [
+        Mutex.lock_evt m1 |> Select.wrap (fun () -> won_m1 := true; Mutex.unlock m1);
+        Mutex.lock_evt m2 |> Select.wrap (fun () -> won_m1 := false; Mutex.unlock m2)
+      ]
+    );
+    
+    (* 3. Yield to let Selector enqueue on both mutexes *)
+    Sched.yield ();
+    
+    (* 4. Unlock m1. Selector wakes up and wins m1! *)
+    Mutex.unlock m1;
+    
+    (* 5. Yield to let Selector actually run its winning case *)
+    Sched.yield ();
+    
+    (* 6. Unlock m2. Selector left a stale trigger here. 
+          Your mutex must silently skip it without crashing. *)
+    Mutex.unlock m2
+  );
+  
+  (!won_m1, "select blocks and tolerates stale waiters")
 
 (** Test the load-balancer pattern from Lecture 10's [_scratch/test1.ml]:
     many clients race to claim any of several slot mutexes via
     [Select.select] over [lock_evt]. *)
-let test_load_balancer () = failwith "Not implemented"
+let test_load_balancer () =
+  let num_slots = 3 in
+  let num_clients = 10 in
+  
+  (* Create an array of 3 distinct Mutexes *)
+  let slots = Array.init num_slots (fun _ -> Mutex.create ()) in
+  let jobs_done = ref 0 in
+  
+  Sched.run (fun () ->
+    for _i = 1 to num_clients do
+      Sched.fork (fun () ->
+        
+        (* Build a list of events: "try to lock slot 0", "try to lock slot 1", etc. 
+           We wrap the event to simply return the mutex that was won. *)
+        let events = 
+          Array.to_list slots
+          |> List.map (fun m -> 
+               Mutex.lock_evt m |> Select.wrap (fun () -> m)
+             )
+        in
+        
+        (* Block until ANY slot becomes available *)
+        let won_mutex = Select.select events in
+        
+        (* --- CRITICAL SECTION --- *)
+        (* Yield to simulate work and force the scheduler to interleave clients *)
+        Sched.yield ();
+        
+        jobs_done := !jobs_done + 1;
+        (* ------------------------ *)
+        
+        (* Release the slot back to the hungry mob *)
+        Mutex.unlock won_mutex
+      )
+    done
+  );
+  
+  (!jobs_done = num_clients, "load balancer safely serves all clients")
 
 (** Test that [Condition.wait] re-acquires the mutex before returning
     (POSIX semantics). *)
-let test_wait_reacquires () = failwith "Not implemented"
+let test_wait_reacquires () = 
+  let m = Mutex.create () in
+  let c = Condition.create () in
+  let ok = ref false in
+  
+  Sched.run (fun () ->
+    Sched.fork (fun () ->
+      Mutex.lock m;
+      Condition.wait c m;
+      Mutex.unlock m;
+      ok := true
+    );
+    
+    Sched.yield ();
+    
+    Mutex.lock m;
+    Condition.signal c;
+    Mutex.unlock m
+  );
+  
+  (!ok, "Condition.wait reacquires the mutex before returning")
 
 let () =
   Printf.printf "=== Manual tests (fiber-level Mutex/Cond/Sem/Bar) ===\n%!";
