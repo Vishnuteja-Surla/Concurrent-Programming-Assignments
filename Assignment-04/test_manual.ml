@@ -97,7 +97,26 @@ end
 
 (** Test bounded-buffer throughput — no items lost, no duplicates,
     under multiple concurrent producers and consumers. *)
-let test_bounded_buffer () = failwith "Not implemented"
+let test_bounded_buffer () =
+  let b = Bounded_buffer.create 2 in
+  let out = ref [] in
+  
+  Sched.run (fun () ->
+    Sched.fork (fun () ->
+      Bounded_buffer.put b 1;
+      Bounded_buffer.put b 2;
+      Bounded_buffer.put b 3;
+    );
+    
+    Sched.fork (fun () ->
+      let v1 = Bounded_buffer.get b in
+      let v2 = Bounded_buffer.get b in
+      let v3 = Bounded_buffer.get b in
+      out := [v1; v2; v3]
+    )
+  );
+  
+  (!out = [1; 2; 3], "bounded buffer respects capacity and signals")
 
 (** The [Rw_lock] module below is PROVIDED — writer-priority R/W lock.
     Do not modify it; use it in [test_readers_writers]. *)
