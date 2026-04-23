@@ -7,8 +7,24 @@ type t = {
   mutable permits : int;
 }
 
-let create _n = failwith "Not implemented"
+let create n = 
+  if n < 0 then invalid_arg "semaphore.create: negative max permit";
+  {
+    m = Mutex.create ();
+    c = Condition.create ();
+    permits = n;
+  }
 
-let acquire _s = failwith "Not implemented"
+let acquire s =
+  Mutex.lock s.m;
+  while s.permits = 0 do
+    Condition.wait s.c s.m
+  done;
+  s.permits <- s.permits - 1;
+  Mutex.unlock s.m
 
-let release _s = failwith "Not implemented"
+let release s =
+  Mutex.lock s.m;
+  s.permits <- s.permits + 1;
+  Condition.signal s.c;
+  Mutex.unlock s.m

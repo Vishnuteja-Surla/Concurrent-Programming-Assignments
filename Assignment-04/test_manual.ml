@@ -175,7 +175,30 @@ let test_barrier () = failwith "Not implemented"
 
 (** Test that a semaphore with [k] permits never allows more than
     [k] fibers in the critical section simultaneously. *)
-let test_semaphore () = failwith "Not implemented"
+let test_semaphore () =
+  let k = 2 in
+  let sem = Semaphore.create k in
+  let inside = ref 0 in
+  let max_inside = ref 0 in
+
+  Sched.run(fun () ->
+    for _ = 1 to 4 do
+      Sched.fork(fun () ->
+        Semaphore.acquire sem;
+        
+        inside := !inside + 1;
+        if !inside > !max_inside then max_inside := !inside;
+
+        Sched.yield ();
+
+        inside := !inside - 1;
+
+        Semaphore.release sem;
+      )
+    done
+  );
+
+  (!max_inside = k, "semaphore respects permit limit")
 
 (** Test that [Select.select] picks an already-free mutex in phase 1
     (the fast path). *)
