@@ -171,7 +171,27 @@ let test_readers_writers () = failwith "Not implemented"
 
 (** Test reusable N-party barrier: no fiber is more than one round
     ahead of any other across multiple barrier crossings. *)
-let test_barrier () = failwith "Not implemented"
+let test_barrier () = 
+  let n = 3 in
+  let b = Barrier.create n in
+  let count_round1 = ref 0 in
+  let count_round2 = ref 0 in
+  
+  Sched.run (fun () ->
+    for _ = 1 to n do
+      Sched.fork (fun () ->
+        (* --- Round 1 --- *)
+        Barrier.wait b;
+        incr count_round1;
+        
+        (* --- Round 2 --- *)
+        Barrier.wait b;
+        incr count_round2
+      )
+    done
+  );
+  
+  (!count_round1 = n && !count_round2 = n, "barrier synchronizes multiple rounds")
 
 (** Test that a semaphore with [k] permits never allows more than
     [k] fibers in the critical section simultaneously. *)
