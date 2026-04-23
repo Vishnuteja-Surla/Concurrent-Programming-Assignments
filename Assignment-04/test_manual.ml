@@ -29,10 +29,33 @@ let run_test name f =
     Printf.printf "[ EXN  ] %s — %s\n%!" name (Printexc.to_string e)
 
 (** Test [try_lock] / [unlock] on a single mutex, sequentially. *)
-let test_mutex_basic () = failwith "Not implemented"
+let test_mutex_basic () =let m = Mutex.create () in
+  let b1 = Mutex.try_lock m in
+  let b2 = Mutex.try_lock m in
+  Mutex.unlock m;
+  let b3 = Mutex.try_lock m in
+  (b1 && not b2 && b3, "basic sequential try_lock/unlock")
 
 (** Test that blocked waiters are served in FIFO order. *)
-let test_mutex_fifo () = failwith "Not implemented"
+let test_mutex_fifo () = 
+  let m = Mutex.create () in
+  let order = ref [] in
+  Sched.run(fun () ->
+    Mutex.lock m;
+    Sched.fork(fun () ->
+      Mutex.lock m;
+      order := 1 :: !order;
+      Mutex.unlock m
+    );
+    Sched.fork(fun () ->
+      Mutex.lock m;
+      order := 2 :: !order;
+      Mutex.unlock m
+    );
+    Sched.yield ();
+    Mutex.unlock m
+  );
+  (!order = [2; 1], "waiters are woken in strict FIFO order")
 
 (** The [Bounded_buffer] module below is PROVIDED — a classic
     Mutex + two-condvar implementation of a bounded FIFO queue.
