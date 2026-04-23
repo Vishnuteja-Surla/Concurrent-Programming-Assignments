@@ -8,7 +8,7 @@ type t = {
 }
 
 let create n = 
-  if n < 0 then invalid_arg "semaphore.create: negative max permit";
+  if n < 0 then invalid_arg "Semaphore.create: negative max permit";
   {
     m = Mutex.create ();
     c = Condition.create ();
